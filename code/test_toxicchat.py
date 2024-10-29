@@ -1,20 +1,10 @@
-import copy
-import pickle
-import torch
 import numpy as np
 import pandas as pd
-import os
-import json
-import pickle
-import torch.nn.functional as F
-import seaborn as sns
-from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-from datasets import load_dataset
-import matplotlib.pyplot as plt
-from sklearn.metrics import precision_recall_curve, auc
-import itertools
+import torch
 from find_critical_parameters import find_critical_para, load_model
+from sklearn.metrics import auc, precision_recall_curve
+from tqdm import tqdm
+
 
 def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
     columns = df[['user_input', 'toxicity']]
@@ -42,7 +32,7 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
     cos_all = []
     label_all = []
 
-    for index, row in columns.iterrows():
+    for index, row in tqdm(columns.iterrows(), total=columns.shape[0]):
         # Ground truth label
         if row['toxicity'] == 1:
             label_all.append(1)
@@ -63,7 +53,7 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
         target_ids = input_ids.clone()
         target_ids[:, :sep] = -100
         optimizer.zero_grad()
-        outputs = model(input_ids, labels=target_ids)
+        outputs = model(input_ids.cuda(), labels=target_ids.cuda())
         neg_log_likelihood = outputs.loss
         neg_log_likelihood.backward()
         
@@ -92,7 +82,7 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
 
     
     # Calculate Precision, Recall, F1
-    from sklearn.metrics import precision_score, recall_score, f1_score
+    from sklearn.metrics import f1_score, precision_score, recall_score
     true_labels = label_all
 
     predicted_labels = [1 if feature >=0.25 else 0 for feature in cos_all]
@@ -114,4 +104,6 @@ if __name__ == "__main__":
     for model_id in ['./model/Llama-2-7b-chat-hf']:
         gradient_norms_compare, minus_row_cos, minus_col_cos =  find_critical_para(model_id)
         df = pd.read_csv('./data/toxic-chat/toxic-chat_annotation_test.csv')
+        # select the first 100 rows
+        df = df.head(100)
         auprc, f1 = cos_sim_toxic(model_id, df,gradient_norms_compare, minus_row_cos, minus_col_cos)
