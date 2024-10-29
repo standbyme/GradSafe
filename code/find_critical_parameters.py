@@ -1,24 +1,27 @@
 import copy
+import itertools
+import json
+import os
+import pdb
 import pickle
-import torch
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
-import json
-import pickle
-import torch.nn.functional as F
 import seaborn as sns
-from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+import torch
+import torch.nn.functional as F
 from datasets import load_dataset
-import matplotlib.pyplot as plt
-from sklearn.metrics import precision_recall_curve, auc
-import itertools
+from sklearn.metrics import auc, precision_recall_curve
+from tqdm import tqdm
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          BitsAndBytesConfig)
+
 
 def load_model(model_id=None, device='cuda'):
     model = AutoModelForCausalLM.from_pretrained(
             model_id, 
-            torch_dtype=torch.float16,
+            # torch_dtype=torch.float16,
             trust_remote_code=True,
             device_map='auto')
     # print(model.__class__)
@@ -71,7 +74,7 @@ def find_critical_para(model_id):
         target_ids = input_ids.clone()
         target_ids[:, :sep] = -100
         optimizer.zero_grad()
-        outputs = model(input_ids, labels=target_ids)
+        outputs = model(input_ids.cuda(), labels=target_ids.cuda())
         neg_log_likelihood = outputs.loss
         neg_log_likelihood.backward()
         for name, param in model.named_parameters():
@@ -102,7 +105,7 @@ def find_critical_para(model_id):
         target_ids = input_ids.clone()
         target_ids[:, :sep] = -100
         optimizer.zero_grad()
-        outputs = model(input_ids, labels=target_ids)
+        outputs = model(input_ids.cuda(), labels=target_ids.cuda())
         neg_log_likelihood = outputs.loss
         neg_log_likelihood.backward()
        
@@ -139,7 +142,7 @@ def find_critical_para(model_id):
         target_ids = input_ids.clone()
         target_ids[:, :sep] = -100
         optimizer.zero_grad()
-        outputs = model(input_ids, labels=target_ids)
+        outputs = model(input_ids.cuda(), labels=target_ids.cuda())
         neg_log_likelihood = outputs.loss
         neg_log_likelihood.backward()
         for name, param in model.named_parameters():
