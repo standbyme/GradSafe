@@ -1,20 +1,22 @@
 import copy
+import itertools
+import json
+import os
 import pickle
-import torch
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import os
-import json
-import pickle
-import torch.nn.functional as F
 import seaborn as sns
-from tqdm import tqdm
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+import torch
+import torch.nn.functional as F
 from datasets import load_dataset
-import matplotlib.pyplot as plt
-from sklearn.metrics import precision_recall_curve, auc
-import itertools
 from find_critical_parameters import find_critical_para, load_model
+from sklearn.metrics import auc, precision_recall_curve
+from tqdm import tqdm
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          BitsAndBytesConfig)
+
 
 def cos_sim_xstest(model_id, df ,gradient_norms_compare,  minus_row, minus_col):
     columns = df[['prompt', 'type']]
@@ -93,7 +95,7 @@ def cos_sim_xstest(model_id, df ,gradient_norms_compare,  minus_row, minus_col):
 
 
     # Calculate Precision, Recall, F1
-    from sklearn.metrics import precision_score, recall_score, f1_score
+    from sklearn.metrics import f1_score, precision_score, recall_score
     true_labels = label_all
 
     predicted_labels = [1 if feature >=0.25 else 0 for feature in cos_all]
