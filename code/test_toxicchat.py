@@ -9,26 +9,35 @@ from tqdm import tqdm
 def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
     columns = df[['user_input', 'toxicity']]
     model, tokenizer = load_model(model_id)
-    
+    print(model.device)
+
     #  Prompt templates
+    if tokenizer.unk_token is None:
+        tokenizer.add_special_tokens({"unk_token": "<unk>"})
+
     sep_token, sep_token_id = tokenizer.unk_token, tokenizer.unk_token_id
-    prompt = (
-        f'<s>[INST] <<SYS>> {{system_prompt}} <</SYS>> {{content}} [/INST]' + 
-        f'{{sep_token}} {{summary}} {{eos_token}}'
-    )
     def apply_prompt_template(sample):
-        txt = prompt.format(
-            system_prompt='You are a helpful assistant. Help me with the following query: ',
-            content=sample['source'],
-            summary=sample['target'],
-            eos_token=tokenizer.eos_token,
-            sep_token=sep_token,
+        system_prompt = (
+            "You are a helpful assistant. Help me with the following query: "
         )
+        content = sample["source"]
+        summary = sample["target"]
+
+        txt = tokenizer.apply_chat_template(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content},
+                {"role": "assistant", "content": f"{sep_token} {summary}"},
+            ],
+            tokenize=False,
+            continue_final_message=False
+        )
+        print(txt)
         return {
             'text': txt,
         }     
 
-    #  Calculate cosine similarity based score 
+    #  Calculate cosine similarity based score
     cos_all = []
     label_all = []
 
@@ -47,7 +56,7 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
         d = apply_prompt_template(basic_sample)
         input_ids = tokenizer(d['text']).input_ids
         sep = input_ids.index(sep_token_id)
-        
+
         input_ids = input_ids[:sep] + input_ids[sep+1:]
         input_ids = torch.tensor(np.array([input_ids]))
         target_ids = input_ids.clone()
@@ -56,7 +65,7 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
         outputs = model(input_ids.cuda(), labels=target_ids.cuda())
         neg_log_likelihood = outputs.loss
         neg_log_likelihood.backward()
-        
+
         # Cosine similarities for safety-critical parameters
         cos = []
         import torch.nn.functional as F
@@ -70,17 +79,15 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
                 cos.extend(row_cos[ref_row>1].cpu().tolist())
                 cos.extend(col_cos[ref_col>1].cpu().tolist())
 
-
         cos_all.append(cos)
-        
+
     # For GradSafe-Zero, average all cosine similarites as one score
     cos_all = [sum(feature)/len(feature) for feature in cos_all]
-    
+
     # Calculate AUPRC
     precision, recall, thresholds = precision_recall_curve(label_all, cos_all)
     auprc = auc(recall, precision)
 
-    
     # Calculate Precision, Recall, F1
     from sklearn.metrics import f1_score, precision_score, recall_score
     true_labels = label_all
@@ -101,7 +108,11 @@ def cos_sim_toxic(model_id, df ,gradient_norms_compare, minus_row, minus_col):
 
 
 if __name__ == "__main__":
-    for model_id in ['./model/Llama-2-7b-chat-hf']:
+    for model_id in [
+        "meta-llama/Llama-2-7b-chat-hf",
+        "meta-llama/Llama-3.2-1B-Instruct",
+    ]:
+        print(f"Evaluating model: {model_id}")
         gradient_norms_compare, minus_row_cos, minus_col_cos =  find_critical_para(model_id)
         df = pd.read_csv('./data/toxic-chat/toxic-chat_annotation_test.csv')
         # select the first 100 rows

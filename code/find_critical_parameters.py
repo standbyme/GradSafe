@@ -20,10 +20,11 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 
 def load_model(model_id=None, device='cuda'):
     model = AutoModelForCausalLM.from_pretrained(
-            model_id, 
-            # torch_dtype=torch.float16,
-            trust_remote_code=True,
-            device_map='auto')
+        model_id,
+        # torch_dtype=torch.float16,
+        trust_remote_code=True,
+        device_map=device,
+    )
     # print(model.__class__)
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 
