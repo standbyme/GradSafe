@@ -6,9 +6,8 @@ from sklearn.metrics import auc, precision_recall_curve
 from tqdm import tqdm
 
 
-def cos_sim_toxic(model_id, df, gradient_norms_compare, minus_row, minus_col):
+def cos_sim_toxic(model, tokenizer, df, gradient_norms_compare, minus_row, minus_col):
     columns = df[["user_input", "toxicity"]]
-    model, tokenizer = load_model(model_id)
 
     #  Prompt templates
     sep_token, sep_token_id = tokenizer.unk_token, tokenizer.unk_token_id
@@ -111,12 +110,14 @@ def cos_sim_toxic(model_id, df, gradient_norms_compare, minus_row, minus_col):
 
 if __name__ == "__main__":
     for model_id in ["meta-llama/Llama-2-7b-chat-hf"]:
+        model, tokenizer = load_model(model_id)
+
         gradient_norms_compare, minus_row_cos, minus_col_cos = find_critical_para(
-            model_id
+            model, tokenizer
         )
         df = pd.read_csv("./data/toxic-chat/toxic-chat_annotation_test.csv")
         # select the first 100 rows
         df = df.head(100)
         auprc, f1 = cos_sim_toxic(
-            model_id, df, gradient_norms_compare, minus_row_cos, minus_col_cos
+            model, tokenizer, df, gradient_norms_compare, minus_row_cos, minus_col_cos
         )
